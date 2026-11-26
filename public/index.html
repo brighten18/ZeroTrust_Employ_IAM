@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zero-Trust IAM Orchestrator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-200 min-h-screen font-sans">
+
+  <!-- LAYAR LOGIN ADMIN (GERBANG ZERO-TRUST) -->
+  <div id="loginGate" class="fixed inset-0 bg-slate-950/95 backdrop-blur-md flex items-center justify-center z-50 p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-lg p-6 max-w-md w-full shadow-2xl">
+      <div class="border-b border-slate-800 pb-3 mb-4">
+        <h1 class="font-bold text-sm text-white uppercase tracking-wider">Zero-Trust Admin Access</h1>
+        <p class="text-xs text-slate-400 mt-1">Portal terproteksi. Wajib autentikasi kredensial admin dan MFA token.</p>
+      </div>
+
+      <form id="loginForm" class="space-y-3">
+        <div>
+          <label class="block text-xs font-mono text-slate-300 mb-1">EMAIL ADMIN</label>
+          <input type="email" id="adminEmail" value="admin@zerotrust.corp" required
+            class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono">
+        </div>
+
+        <div>
+          <label class="block text-xs font-mono text-slate-300 mb-1">PASSWORD ADMIN</label>
+          <input type="password" id="adminPassword" value="AdminPassword2026!" required
+            class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono">
+        </div>
+
+        <div>
+          <label class="block text-xs font-mono text-slate-300 mb-1">MFA CODE (6-DIGIT TOTP)</label>
+          <input type="text" id="adminMfa" value="123456" maxlength="6" required
+            class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono tracking-widest text-center">
+          <span class="text-[10px] text-slate-500">Default Sandbox MFA: 123456</span>
+        </div>
+
+        <button type="submit"
+          class="w-full mt-3 bg-blue-600 hover:bg-blue-500 text-white font-medium py-2 rounded text-xs tracking-wider uppercase transition font-mono">
+          AUTHENTICATE & ENTER PORTAL
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL BUKTI NOTIFIKASI KREDENSIAL TERKIRIM -->
+  <div id="credentialModal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-40 p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-lg p-6 max-w-lg w-full shadow-2xl">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3 mb-4">
+        <h3 class="font-bold text-xs text-white uppercase tracking-wider font-mono">Notifikasi Kredensial Terkirim</h3>
+        <span class="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded font-mono">DISPATCH SUCCESS</span>
+      </div>
+      <div class="bg-slate-950 p-4 rounded border border-slate-800 font-mono text-xs space-y-2 text-slate-300">
+        <div><strong class="text-slate-500">Kepada:</strong> <span id="modalTargetEmail" class="text-white"></span></div>
+        <div><strong class="text-slate-500">Email Kantor:</strong> <span id="modalCompanyEmail" class="text-blue-400"></span></div>
+        <div><strong class="text-slate-500">Temporary Password:</strong> <span id="modalTempPass" class="text-emerald-400 font-bold"></span></div>
+        <div><strong class="text-slate-500">Role:</strong> <span id="modalRole"></span></div>
+        <div class="mt-3 pt-3 border-t border-slate-900 text-[11px] text-slate-400">
+          Kebijakan Zero-Trust: Password sementara berlaku 24 jam. Karyawan wajib melakukan konfigurasi MFA pada login pertama.
+        </div>
+      </div>
+      <button id="closeModalBtn" class="w-full mt-4 bg-slate-800 hover:bg-slate-700 text-slate-200 py-1.5 rounded text-xs font-mono tracking-wider uppercase transition">
+        TUTUP KONFIRMASI
+      </button>
+    </div>
+  </div>
+
+  <!-- Header Dashboard -->
+  <header class="border-b border-slate-800 bg-slate-900/80 px-8 py-4 flex justify-between items-center">
+    <div>
+      <h1 class="font-bold text-base tracking-wide text-white uppercase">Zero-Trust IAM Orchestrator</h1>
+      <p class="text-xs text-slate-400">Automated Provisioning, RBAC Mapping & Session Revocation</p>
+    </div>
+    <div class="flex items-center space-x-4">
+      <div class="flex items-center space-x-2">
+        <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+        <span class="text-xs font-mono text-emerald-400 tracking-wider">AUTHENTICATED</span>
+      </div>
+      <button id="logoutBtn" class="text-xs font-mono bg-red-950/60 border border-red-800 hover:bg-red-900 text-red-200 px-3 py-1 rounded transition">
+        LOGOUT
+      </button>
+    </div>
+  </header>
+
+  <!-- Konten Utama Dashboard -->
+  <main class="max-w-7xl mx-auto p-6 space-y-6">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- Form Onboarding -->
+      <div class="lg:col-span-1 bg-slate-900 border border-slate-800 rounded-lg p-5">
+        <h2 class="text-sm font-semibold text-white uppercase tracking-wider mb-1">
+          Karyawan Baru
+        </h2>
+        <p class="text-xs text-slate-400 mb-4">Input identitas untuk provisi akun kantor dan grup akses.</p>
+        
+        <form id="onboardForm" class="space-y-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Nama Lengkap</label>
+            <input type="text" id="fullName" required placeholder="Contoh: Budi Santoso"
+              class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Email Pribadi</label>
+            <input type="email" id="personalEmail" required placeholder="budi@example.com"
+              class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+            <span class="text-[10px] text-slate-500">Kredensial sementara dikirim ke email ini.</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-300 mb-1">Departemen</label>
+              <select id="department" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                <option value="Engineering">Engineering</option>
+                <option value="Finance">Finance</option>
+                <option value="Operations">Operations</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-300 mb-1">Role RBAC</label>
+              <select id="role" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                <option value="Developer">Developer</option>
+                <option value="Finance">Finance</option>
+                <option value="Staff Umum">Staff Umum</option>
+              </select>
+            </div>
+          </div>
+
+          <button type="submit" 
+            class="w-full mt-2 bg-blue-600 hover:bg-blue-500 text-white font-medium py-2 rounded text-xs tracking-wider uppercase transition">
+            Provision & Assign Access
+          </button>
+        </form>
+      </div>
+
+      <!-- RBAC Policy Matrix -->
+      <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-lg p-5 flex flex-col justify-between">
+        <div>
+          <h2 class="text-sm font-semibold text-white uppercase tracking-wider mb-2">
+            Matriks Kebijakan RBAC & Keamanan
+          </h2>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+            <div class="p-3 bg-slate-950 rounded border border-slate-800">
+              <span class="text-xs font-mono font-bold text-blue-400">ROLE: DEVELOPER</span>
+              <p class="text-[11px] text-slate-400 mt-1">Grup: GitHub Org, AWS Dev Console.</p>
+              <span class="inline-block mt-2 text-[10px] bg-blue-950 text-blue-300 px-2 py-0.5 rounded border border-blue-800 font-mono">MFA ENFORCED</span>
+            </div>
+            <div class="p-3 bg-slate-950 rounded border border-slate-800">
+              <span class="text-xs font-mono font-bold text-emerald-400">ROLE: FINANCE</span>
+              <p class="text-[11px] text-slate-400 mt-1">Grup: ERP System, Banking Read-Only.</p>
+              <span class="inline-block mt-2 text-[10px] bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded border border-emerald-800 font-mono">MFA ENFORCED</span>
+            </div>
+            <div class="p-3 bg-slate-950 rounded border border-slate-800">
+              <span class="text-xs font-mono font-bold text-slate-300">ROLE: STAFF UMUM</span>
+              <p class="text-[11px] text-slate-400 mt-1">Grup: Google Workspace Core, HR Portal.</p>
+              <span class="inline-block mt-2 text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 font-mono">STANDARD</span>
+            </div>
+          </div>
+        </div>
+        <div class="mt-4 p-3 bg-red-950/30 border border-red-900/60 rounded">
+          <p class="text-xs text-red-200">
+            <strong class="uppercase tracking-wider font-mono">Protokol Offboarding:</strong> Memblokir login, mencabut seluruh keanggotaan grup RBAC, dan menghancurkan seluruh sesi aktif secara instan.
+          </p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Direktori Karyawan -->
+    <div class="bg-slate-900 border border-slate-800 rounded-lg p-5">
+      <div class="flex justify-between items-center mb-4">
+        <div>
+          <h2 class="text-sm font-semibold text-white uppercase tracking-wider">Direktori Identitas Karyawan</h2>
+          <p class="text-xs text-slate-400">Status akun terdaftar dan hak akses aktif.</p>
+        </div>
+        <button id="refreshBtn" class="text-xs font-mono bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded text-slate-300 transition">
+          REFRESH
+        </button>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs text-slate-300">
+          <thead class="bg-slate-950 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
+            <tr>
+              <th class="py-3 px-4">Identitas</th>
+              <th class="py-3 px-4">Role & Dept</th>
+              <th class="py-3 px-4">Grup Akses</th>
+              <th class="py-3 px-4">Status & MFA</th>
+              <th class="py-3 px-4 text-center">Tindakan</th>
+            </tr>
+          </thead>
+          <tbody id="employeeTableBody" class="divide-y divide-slate-800"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Audit Log -->
+    <div class="bg-slate-900 border border-slate-800 rounded-lg p-5">
+      <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 font-mono">
+        Audit & Governance Log (Read-Only)
+      </h2>
+      <div id="auditLogList" class="space-y-1.5 font-mono text-[11px] max-h-48 overflow-y-auto pr-2"></div>
+    </div>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

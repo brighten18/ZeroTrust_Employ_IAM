@@ -1,0 +1,12 @@
+# Dependency folder
+node_modules/
+
+.env
+.sqlite
+.sqlite-wal
+.sqlite-shm
+
+# Logs & OS metadata
+npm-debug.log*
+.DS_Store
+Thumbs.db
